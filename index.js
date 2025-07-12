@@ -3,8 +3,10 @@ const { default: criarConexaoWhatsapp, useMultiFileAuthState, DisconnectReason }
 const qrcode = require('qrcode');
 const express = require('express');
 const dotenv = require('dotenv');
-
 dotenv.config();
+const validarMensagemEntrada = require('./utils/validarMensagemEntrada')
+const axios = require('axios');
+
 
 // 🚀 Inicializa o servidor Express
 const app = express();
@@ -22,6 +24,38 @@ function verificarToken(req, res, next) {
   }
   next(); // continua para a rota
 }
+
+// Função para extrair os dados importantes da mensagem
+function extrairDadosMensagem(infoMensagem) {
+  const numero = infoMensagem.key.remoteJid.replace('@s.whatsapp.net', '');
+  const mensagem = infoMensagem.message.conversation || infoMensagem.message.extendedTextMessage?.text || '';
+  const data = new Date().toISOString();
+
+  return { numero, mensagem, data };
+}
+
+// Função que envia os dados para o backend
+async function enviarParaBackend({ numero, mensagem, data }) {
+  try {
+    const response = await axios.post(`${process.env.URL_BACKEND}/receber-mensagem`, {
+      numero,
+      mensagem,
+      dataMsgRecebida: data
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.API_TOKEN}`
+      }
+    }
+    );
+
+    console.log(`✅ Enviado ao backend: ${numero}, ${mensagem}`);
+    return response.data;
+  } catch (erro) {
+    console.error('❌ Erro ao enviar para o backend:', erro.message);
+  }
+}
+
 
 
 // 🔥 Função principal — Inicia a conexão com o WhatsApp
@@ -62,10 +96,15 @@ async function iniciarConexaoWhatsapp() {
 
     console.log(`📩 Mensagem recebida de ${numeroRemetente}: ${conteudoMensagem}`);
 
-    if (conteudoMensagem?.toLowerCase() === 'ola' || conteudoMensagem?.toLowerCase() === 'olá') {
-      await enviarMensagem(numeroRemetente, 'Olá, eu sou um bot do Glebson!');
-      console.log(`✅ Respondi automaticamente para ${numeroRemetente}`);
+    const dados = extrairDadosMensagem(infoMensagem);
+    const erro = validarMensagemEntrada(dados.numero, dados.mensagem);
+
+    if (erro) {
+      console.log(`❌ Mensagem inválida de ${dados.numero}: ${erro}`);
+      return; // ignora mensagem inválida
     }
+
+    await enviarParaBackend(dados);
   });
 
   // 🔐 Atualiza as credenciais salvas
@@ -88,6 +127,8 @@ async function gerarQRCode() {
 function obterStatusConexao() {
   return conexaoWhatsapp ? '🟢 Conectado ao WhatsApp!' : '🔴 Não conectado!';
 }
+
+
 
 // 🌐 ROTAS DA API
 
@@ -124,13 +165,20 @@ app.get('/qr', async (req, res) => {
   `);
 });
 
+// 🚦 Endpoint para checar status da conexão
+app.get('/status', (req, res) => {
+  res.send(obterStatusConexao());
+});
+
+// APARTIR DAQUI FICA A LOGICA DE ENVIAR E RECEBER MENSAGENS
+
 // 📤 Endpoint que envia mensagem manual
 app.get('/enviar', verificarToken,async (req, res) => {
-  const numero = req.query.numero;
-  const mensagem = req.query.mensagem;
+  const { numero, mensagem } = req.query
 
-  if (!numero || !mensagem) {
-    return res.send('⚠️ Informe os parâmetros numero= e mensagem=');
+  const erroValidacao = validarMensagemEntrada(numero, mensagem)
+  if (erroValidacao) {
+    return res.status(400).send(`${erroValidacao}`) 
   }
 
   try {
@@ -141,10 +189,7 @@ app.get('/enviar', verificarToken,async (req, res) => {
   }
 });
 
-// 🚦 Endpoint para checar status da conexão
-app.get('/status', (req, res) => {
-  res.send(obterStatusConexao());
-});
+
 
 // 🚀 Inicia o servidor automaticamente
 app.listen(porta, () => {
