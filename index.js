@@ -4,50 +4,33 @@ const qrcode = require('qrcode');
 const express = require('express');
 const dotenv = require('dotenv');
 dotenv.config();
-const validarMensagemEntrada = require('./utils/validarMensagemEntrada')
+const validarMensagemEntrada = require('./utils/validarMensagemEntrada');
 const axios = require('axios');
-
 
 // 🚀 Inicializa o servidor Express
 const app = express();
 const porta = process.env.PORT || 3000;
 
 // 🔗 Variáveis globais
-let conexaoWhatsapp;         // Armazena a conexão ativa do WhatsApp
-let qrCodeAtual = null;      // Armazena o QR Code temporário para conexão
-
-// Função que valida se o token esta correto
-function verificarToken(req, res, next) {
-  const token = req.query.token;
-  if (token !== process.env.TOKEN_SECRETO) {
-    return res.status(403).send('❌ Token inválido');
-  }
-  next(); // continua para a rota
-}
+let conexaoWhatsapp;
+let qrCodeAtual = null;
 
 // Função para extrair os dados importantes da mensagem
 function extrairDadosMensagem(infoMensagem) {
   const numero = infoMensagem.key.remoteJid.replace('@s.whatsapp.net', '');
   const mensagem = infoMensagem.message.conversation || infoMensagem.message.extendedTextMessage?.text || '';
   const data = new Date().toISOString();
-
   return { numero, mensagem, data };
 }
 
-// Função que envia os dados para o backend
+// Envia mensagem recebida para o backend
 async function enviarParaBackend({ numero, mensagem, data }) {
   try {
-    const response = await axios.post(`${process.env.URL_BACKEND}/receber-mensagem`, {
+    const response = await axios.post(`${process.env.URL_BACKEND}/recebemensagem`, {
       numero,
       mensagem,
       dataMsgRecebida: data
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.API_TOKEN}`
-      }
-    }
-    );
+    });
 
     console.log(`✅ Enviado ao backend: ${numero}, ${mensagem}`);
     return response.data;
@@ -56,23 +39,20 @@ async function enviarParaBackend({ numero, mensagem, data }) {
   }
 }
 
-
-
-// 🔥 Função principal — Inicia a conexão com o WhatsApp
+// Inicia conexão com WhatsApp
 async function iniciarConexaoWhatsapp() {
   const { state, saveCreds } = await useMultiFileAuthState('dados_autenticacao');
 
   conexaoWhatsapp = criarConexaoWhatsapp({
     auth: state,
-    printQRInTerminal: false // Não exibe no terminal, pois vamos exibir via web
+    printQRInTerminal: false
   });
 
-  // 🚦 Gerenciamento da conexão
   conexaoWhatsapp.ev.on('connection.update', (atualizacao) => {
     const { connection, lastDisconnect, qr } = atualizacao;
 
     if (qr) {
-      qrCodeAtual = qr; // Salva QR para exibir via navegador
+      qrCodeAtual = qr;
       console.log('🟨 QR Code gerado — Acesse /qr para escanear');
     }
 
@@ -82,11 +62,10 @@ async function iniciarConexaoWhatsapp() {
       if (deveReconectar) iniciarConexaoWhatsapp();
     } else if (connection === 'open') {
       console.log('🟩 Conectado ao WhatsApp!');
-      qrCodeAtual = null; // Limpa QR pois já está conectado
+      qrCodeAtual = null;
     }
   });
 
-  // 📥 Recebe mensagens e responde automaticamente se for "ola" ou "olá"
   conexaoWhatsapp.ev.on('messages.upsert', async (mensagem) => {
     const infoMensagem = mensagem.messages[0];
     if (!infoMensagem.message || infoMensagem.key.fromMe) return;
@@ -101,43 +80,38 @@ async function iniciarConexaoWhatsapp() {
 
     if (erro) {
       console.log(`❌ Mensagem inválida de ${dados.numero}: ${erro}`);
-      return; // ignora mensagem inválida
+      return;
     }
 
     await enviarParaBackend(dados);
   });
 
-  // 🔐 Atualiza as credenciais salvas
   conexaoWhatsapp.ev.on('creds.update', saveCreds);
 }
 
-// ✉️ Função para enviar mensagem
+// Função para enviar mensagem
 async function enviarMensagem(numero, mensagem) {
   if (!conexaoWhatsapp) throw new Error('❌ WhatsApp não está conectado.');
   await conexaoWhatsapp.sendMessage(numero, { text: mensagem });
 }
 
-// 📷 Função que gera QR Code em base64
+// Gera o QR Code
 async function gerarQRCode() {
   if (!qrCodeAtual) return null;
   return await qrcode.toDataURL(qrCodeAtual);
 }
 
-// 🚦 Verifica status da conexão
+// Verifica status
 function obterStatusConexao() {
   return conexaoWhatsapp ? '🟢 Conectado ao WhatsApp!' : '🔴 Não conectado!';
 }
 
+// ROTAS
 
-
-// 🌐 ROTAS DA API
-
-// 🏠 Endpoint raiz
 app.get('/', (req, res) => {
   res.send('✅ API WhatsApp rodando!');
 });
 
-// 🔌 Endpoint para iniciar a conexão manualmente (opcional)
 app.get('/iniciar', async (req, res) => {
   try {
     await iniciarConexaoWhatsapp();
@@ -147,7 +121,6 @@ app.get('/iniciar', async (req, res) => {
   }
 });
 
-// 🔗 Endpoint que gera e exibe o QR Code no navegador
 app.get('/qr', async (req, res) => {
   const qr = await gerarQRCode();
   if (!qr) {
@@ -165,20 +138,17 @@ app.get('/qr', async (req, res) => {
   `);
 });
 
-// 🚦 Endpoint para checar status da conexão
 app.get('/status', (req, res) => {
   res.send(obterStatusConexao());
 });
 
-// APARTIR DAQUI FICA A LOGICA DE ENVIAR E RECEBER MENSAGENS
+// Endpoint que envia mensagem manual
+app.get('/enviar', async (req, res) => {
+  const { numero, mensagem } = req.query;
 
-// 📤 Endpoint que envia mensagem manual
-app.get('/enviar', verificarToken,async (req, res) => {
-  const { numero, mensagem } = req.query
-
-  const erroValidacao = validarMensagemEntrada(numero, mensagem)
+  const erroValidacao = validarMensagemEntrada(numero, mensagem);
   if (erroValidacao) {
-    return res.status(400).send(`${erroValidacao}`) 
+    return res.status(400).send(`${erroValidacao}`);
   }
 
   try {
@@ -189,9 +159,7 @@ app.get('/enviar', verificarToken,async (req, res) => {
   }
 });
 
-
-
-// 🚀 Inicia o servidor automaticamente
+// Inicia o servidor
 app.listen(porta, () => {
   console.log(`🚀 Servidor rodando na porta ${porta}`);
   iniciarConexaoWhatsapp();
