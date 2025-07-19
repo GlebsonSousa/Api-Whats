@@ -21,6 +21,44 @@ async function enviarMensagem(numero, mensagem) {
   await conexao.sendMessage(numero, { text: mensagem });
 }
 
+async function enviarParaBackend({ numero, mensagem, data }) {
+  try {
+    const response = await axios.post(`${process.env.URL_BACKEND}/recebemensagem`, {
+      numero,
+      mensagem,
+      dataMsgRecebida: data
+    });
+    console.log(`✅ Enviado ao backend: ${numero}, ${mensagem}`);
+    return response.data;
+  } catch (erro) {
+    console.error('❌ Erro ao enviar para o backend:', erro.message);
+  }
+}
+
+function extrairDadosMensagem(infoMensagem) {
+  const numero = infoMensagem.key.remoteJid.replace('@s.whatsapp.net', '');
+  const mensagem = infoMensagem.message.conversation || infoMensagem.message.extendedTextMessage?.text || '';
+  const data = new Date().toISOString();
+  return { numero, mensagem, data };
+}
+
+
+// ✅ Função para lidar com mensagens recebidas
+function aoReceberMensagem(mensagem) {
+  const infoMensagem = mensagem.messages[0];
+  if (!infoMensagem?.message || infoMensagem.key.fromMe) return;
+
+  const dados = extrairDadosMensagem(infoMensagem);
+  const erro = validarMensagemEntrada(dados.numero, dados.mensagem);
+
+  if (erro) {
+    console.log(`❌ Mensagem inválida de ${dados.numero}: ${erro}`);
+    return;
+  }
+
+  enviarParaBackend(dados);
+}
+
 // ROTAS
 app.get('/', (req, res) => {
   res.send('✅ API WhatsApp rodando!');
@@ -56,6 +94,17 @@ app.get('/status', (req, res) => {
   res.send(obterStatusConexao());
 });
 
+// ♻️ Forçar nova sessão (novo QR)
+app.get('/forcar-conexao', async (req, res) => {
+  try {
+    await iniciarConexaoWhatsapp(true); // true = força nova conexão
+    res.send('🔄 Nova conexão forçada. Escaneie o QR code novamente.');
+  } catch (erro) {
+    res.status(500).send(`❌ Erro ao reiniciar conexão: ${erro.message}`);
+  }
+});
+
+
 app.get('/enviar', async (req, res) => {
   const { numero, mensagem } = req.query;
 
@@ -72,18 +121,12 @@ app.get('/enviar', async (req, res) => {
   }
 });
 
-// ♻️ Forçar nova sessão (novo QR)
-app.get('/forcar-conexao', async (req, res) => {
-  try {
-    await iniciarConexaoWhatsapp(true); // true = força nova conexão
-    res.send('🔄 Nova conexão forçada. Escaneie o QR code novamente.');
-  } catch (erro) {
-    res.status(500).send(`❌ Erro ao reiniciar conexão: ${erro.message}`);
-  }
-});
+
+
+
 
 // 🚀 Iniciar servidor e conexão automática
 app.listen(porta, () => {
   console.log(`🚀 Servidor rodando na porta ${porta}`);
-  iniciarConexaoWhatsapp(); // inicia com sessão salva se existir
+  iniciarConexaoWhatsapp(false, aoReceberMensagem); // inicia com sessão salva se existir
 });

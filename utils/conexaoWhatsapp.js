@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { default: criarConexaoWhatsapp, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
-const validarMensagemEntrada = require('./validarMensagemEntrada');
+
 const axios = require('axios');
 require('dotenv').config();
 
@@ -12,27 +12,6 @@ let qrCodeAtual = null;
 const pastaAuth = 'dados_autenticacao';
 const caminhoCreds = path.join(pastaAuth, 'creds.json');
 
-function extrairDadosMensagem(infoMensagem) {
-  const numero = infoMensagem.key.remoteJid.replace('@s.whatsapp.net', '');
-  const mensagem = infoMensagem.message.conversation || infoMensagem.message.extendedTextMessage?.text || '';
-  const data = new Date().toISOString();
-  return { numero, mensagem, data };
-}
-
-async function enviarParaBackend({ numero, mensagem, data }) {
-  try {
-    const response = await axios.post(`${process.env.URL_BACKEND}/recebemensagem`, {
-      numero,
-      mensagem,
-      dataMsgRecebida: data
-    });
-    console.log(`✅ Enviado ao backend: ${numero}, ${mensagem}`);
-    return response.data;
-  } catch (erro) {
-    console.error('❌ Erro ao enviar para o backend:', erro.message);
-  }
-}
-
 function limparSessaoAnterior() {
   if (fs.existsSync(pastaAuth)) {
     fs.rmSync(pastaAuth, { recursive: true, force: true });
@@ -40,7 +19,7 @@ function limparSessaoAnterior() {
   }
 }
 
-async function iniciarConexaoWhatsapp(forcarNovaSessao = false) {
+async function iniciarConexaoWhatsapp(forcarNovaSessao = false, onMensagemRecebida = null) {
   if (forcarNovaSessao) limparSessaoAnterior();
 
   const { state, saveCreds } = await useMultiFileAuthState(pastaAuth);
@@ -61,9 +40,8 @@ async function iniciarConexaoWhatsapp(forcarNovaSessao = false) {
     if (connection === 'close') {
       const deveReconectar = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log('🟥 Conexão fechada. Reconectar?', deveReconectar);
-
       if (deveReconectar) {
-        iniciarConexaoWhatsapp(); // tenta reconectar com mesma sessão
+        iniciarConexaoWhatsapp(false, onMensagemRecebida);
       } else {
         console.log('⚠️ Sessão desconectada permanentemente. Novo QR será necessário.');
       }
@@ -73,23 +51,14 @@ async function iniciarConexaoWhatsapp(forcarNovaSessao = false) {
     }
   });
 
-  conexaoWhatsapp.ev.on('messages.upsert', async (mensagem) => {
-    const infoMensagem = mensagem.messages[0];
-    if (!infoMensagem.message || infoMensagem.key.fromMe) return;
-
-    const dados = extrairDadosMensagem(infoMensagem);
-    const erro = validarMensagemEntrada(dados.numero, dados.mensagem);
-
-    if (erro) {
-      console.log(`❌ Mensagem inválida de ${dados.numero}: ${erro}`);
-      return;
-    }
-
-    await enviarParaBackend(dados);
-  });
+  // 🟢 Escuta mensagens recebidas
+  if (onMensagemRecebida) {
+    conexaoWhatsapp.ev.on('messages.upsert', onMensagemRecebida);
+  }
 
   conexaoWhatsapp.ev.on('creds.update', saveCreds);
 }
+
 
 async function gerarQRCode() {
   if (!qrCodeAtual) return null;
@@ -109,5 +78,6 @@ module.exports = {
   gerarQRCode,
   obterStatusConexao,
   getConexao,
-  limparSessaoAnterior
+  limparSessaoAnterior,
+  getConexao
 };
