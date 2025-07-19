@@ -107,7 +107,7 @@ app.get('/forcar-conexao', async (req, res) => {
 });
 
 
-app.get('/enviar', async (req, res) => {
+app.post('/enviar', async (req, res) => {
   const { numero, mensagem } = req.query;
 
   const erroValidacao = validarMensagemEntrada(numero, mensagem);
@@ -122,9 +122,6 @@ app.get('/enviar', async (req, res) => {
     res.status(500).send(`❌ Erro ao enviar: ${erro.message}`);
   }
 });
-
-
-
 
 
 // 🚀 Iniciar servidor e conexão automática
