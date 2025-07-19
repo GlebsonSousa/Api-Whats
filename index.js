@@ -110,7 +110,7 @@ app.get('/forcar-conexao', async (req, res) => {
 
 
 app.post('/enviar', async (req, res) => {
-  const { numero, mensagem } = req.query;
+  const { numero, mensagem } = req.body;
 
   const erroValidacao = validarMensagemEntrada(numero, mensagem);
   if (erroValidacao) {
