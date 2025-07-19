@@ -16,6 +16,8 @@ const {
 const app = express();
 const porta = process.env.PORT || 3000;
 
+app.use(express.json()); // certifique-se de ter isso antes das rotas
+
 // 📤 Função para enviar mensagem (fica no index.js)
 async function enviarMensagem(numero, mensagem) {
   const conexao = getConexao();
