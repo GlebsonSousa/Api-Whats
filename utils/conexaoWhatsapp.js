@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { default: criarConexaoWhatsapp, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
-const validarMensagemEntrada = require('./utils/validarMensagemEntrada');
+const validarMensagemEntrada = require('./validarMensagemEntrada');
 const axios = require('axios');
 require('dotenv').config();
 
