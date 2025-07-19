@@ -9,7 +9,7 @@ const {
   obterStatusConexao,
   getConexao,
   limparSessaoAnterior
-} = require('./conexaoWhatsapp');
+} = require('./utils/conexaoWhatsapp');
 
 const app = express();
 const porta = process.env.PORT || 3000;
