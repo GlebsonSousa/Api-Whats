@@ -19,6 +19,7 @@
   "homepage": "https://github.com/GlebsonSousa/WhatsVenom#readme",
   "description": "",
   "dependencies": {
+    "googleapis": "^105.0.0",
     "@whiskeysockets/baileys": "^6.7.18",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
