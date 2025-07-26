@@ -9,8 +9,8 @@ require('dotenv').config();
 let conexaoWhatsapp = null;
 let qrCodeAtual = null;
 
-const pastaAuth = 'dados_autenticacao';
-const caminhoCreds = path.join(pastaAuth, 'creds.json');
+const { fazerDownload, fazerUpload } = require('./drive');
+
 
 function limparSessaoAnterior() {
   if (fs.existsSync(pastaAuth)) {
@@ -21,6 +21,11 @@ function limparSessaoAnterior() {
 
 async function iniciarConexaoWhatsapp(forcarNovaSessao = false, onMensagemRecebida = null) {
   if (forcarNovaSessao) limparSessaoAnterior();
+
+  if (!fs.existsSync(pastaAuth)) {
+    console.log('📡 Tentando restaurar sessão do Google Drive...');
+    await fazerDownload();
+  }
 
   const { state, saveCreds } = await useMultiFileAuthState(pastaAuth);
 
@@ -48,16 +53,17 @@ async function iniciarConexaoWhatsapp(forcarNovaSessao = false, onMensagemRecebi
     } else if (connection === 'open') {
       console.log('🟩 Conectado ao WhatsApp!');
       qrCodeAtual = null;
+      fazerUpload(); // envia sessão ao Drive
     }
   });
 
-  // 🟢 Escuta mensagens recebidas
   if (onMensagemRecebida) {
     conexaoWhatsapp.ev.on('messages.upsert', onMensagemRecebida);
   }
 
   conexaoWhatsapp.ev.on('creds.update', saveCreds);
 }
+
 
 
 async function gerarQRCode() {
