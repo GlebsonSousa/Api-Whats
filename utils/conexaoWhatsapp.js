@@ -10,6 +10,8 @@ let conexaoWhatsapp = null;
 let qrCodeAtual = null;
 
 const { fazerDownload, fazerUpload } = require('./drive');
+const pastaAuth = 'dados_autenticacao'; // pasta onde a sessão do WhatsApp fica salva
+
 
 
 function limparSessaoAnterior() {
