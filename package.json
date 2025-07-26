@@ -21,11 +21,11 @@
   "dependencies": {
   "@whiskeysockets/baileys": "^6.7.18",
   "axios": "^1.4.0",
+  "dropbox": "^11.0.0",
   "dotenv": "^17.2.0",
   "express": "^5.1.0",
   "googleapis": "^105.0.0",
-  "qrcode": "^1.5.4",
-  "unzipper": "^0.10.11",
-  "archiver": "^5.3.1"
+  "qrcode": "^1.5.4"
+
   }
 }
