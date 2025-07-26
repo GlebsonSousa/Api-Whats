@@ -1,9 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const { Dropbox } = require('dropbox');
-const fetch = require('node-fetch'); // Necessário para node.js
+const fetch = require('node-fetch'); // Necessário para Node.js
+require('dotenv').config();
 
 const ACCESS_TOKEN = process.env.DROPBOX_ACCESS_TOKEN;
+if (!ACCESS_TOKEN) {
+  console.error('❌ DROPBOX_ACCESS_TOKEN não definido no .env');
+  process.exit(1);
+}
+
 const dropbox = new Dropbox({ accessToken: ACCESS_TOKEN, fetch });
 
 const PASTA_LOCAL = 'dados_autenticacao';
@@ -15,8 +21,10 @@ function ziparPasta(origem, destinoZip) {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(destinoZip);
     const archive = archiver('zip', { zlib: { level: 9 } });
+
     output.on('close', resolve);
     archive.on('error', reject);
+
     archive.pipe(output);
     archive.directory(origem, false);
     archive.finalize();
@@ -45,28 +53,39 @@ async function fazerUpload() {
     fs.unlinkSync(ARQUIVO_ZIP_LOCAL);
     console.log('☁️ Sessão enviada ao Dropbox!');
   } catch (error) {
-    console.error('Erro no upload do Dropbox:', error);
+    console.error('❌ Erro no upload do Dropbox:', error);
   }
 }
 
 async function fazerDownload() {
   try {
     const response = await dropbox.filesDownload({ path: ARQUIVO_DROPBOX });
-    const arquivoBuffer = response.result.fileBinary;
 
-    fs.writeFileSync(ARQUIVO_ZIP_LOCAL, arquivoBuffer);
+    let buffer;
 
-    // Remove pasta antiga antes de descompactar
+    if (response.result.fileBinary) {
+      // Versão antiga
+      buffer = Buffer.from(response.result.fileBinary, 'binary');
+    } else if (response.result.fileBlob) {
+      // Versão atual retorna Blob
+      buffer = Buffer.from(await response.result.fileBlob.arrayBuffer());
+    } else {
+      throw new Error('Não foi possível obter o conteúdo do arquivo do Dropbox');
+    }
+
+    fs.writeFileSync(ARQUIVO_ZIP_LOCAL, buffer);
+
     if (fs.existsSync(PASTA_LOCAL)) {
       fs.rmSync(PASTA_LOCAL, { recursive: true, force: true });
     }
 
     await descompactarZip(ARQUIVO_ZIP_LOCAL, PASTA_LOCAL);
+
     fs.unlinkSync(ARQUIVO_ZIP_LOCAL);
     console.log('📥 Sessão restaurada do Dropbox!');
     return true;
   } catch (error) {
-    console.warn('Não foi possível baixar sessão do Dropbox (provável que não exista ainda).');
+    console.warn('⚠️ Não foi possível baixar sessão do Dropbox (provável que não exista ainda).');
     return false;
   }
 }
