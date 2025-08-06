@@ -27,10 +27,9 @@ async function enviarMensagem(numero, mensagem) {
 
 async function enviarParaBackend({ numero, mensagem, data }) {
   try {
-    const response = await axios.post(`${process.env.URL_BACKEND}/recebemensagem`, {
+    const response = await axios.post(`${process.env.URL_BACKEND}/recebe-mensagem`, {
       numero,
-      mensagem,
-      dataMsgRecebida: data
+      mensagem
     });
     console.log(`✅ Enviado ao backend: ${numero}, ${mensagem}`);
     return response.data;
