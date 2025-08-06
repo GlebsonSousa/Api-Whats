@@ -26,9 +26,12 @@ async function enviarMensagem(numero, mensagem) {
 }
 
 async function enviarParaBackend({ numero, mensagem }) {
+  
+  const usuarioId = mensagem
+  
   try {
     const response = await axios.post(`${process.env.URL_BACKEND}/recebe-mensagem`, {
-      usuarioId: numero,
+      usuarioId,
       mensagem
     });
     console.log(`✅ Enviado ao backend: ${numero}, ${mensagem}`);
@@ -123,7 +126,6 @@ app.post('/enviar', async (req, res) => {
     res.status(500).send(`❌ Erro ao enviar: ${erro.message}`);
   }
 });
-
 
 // 🚀 Iniciar servidor e conexão automática
 app.listen(porta, () => {
