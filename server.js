@@ -108,7 +108,7 @@ async function enviaParaIa(mensagem) {
 }
 
 async function AcessaBD(usuarioId, jsonIa) {
-  respostaDB = processarComandos(usuarioId, jsonIa)
+  respostaDB = await processarComandos(usuarioId, jsonIa)
   return respostaDB
 }
 
