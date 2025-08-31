@@ -61,7 +61,7 @@ function aoReceberMensagem(mensagem) {
     console.log(`❌ Mensagem inválida de ${dados.numero}: ${erro}`);
     return;
   }
-
+  console.log('Mensagem que foi enviada para o backend: ', dados);
   enviarParaBackend(dados);
 }
 
@@ -131,4 +131,5 @@ app.post('/enviar', async (req, res) => {
 app.listen(porta, () => {
   console.log(`🚀 Servidor rodando na porta ${porta}`);
   iniciarConexaoWhatsapp(false, aoReceberMensagem); // inicia com sessão salva se existir
+
 });
