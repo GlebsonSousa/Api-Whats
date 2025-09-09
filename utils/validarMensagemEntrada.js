@@ -1,5 +1,5 @@
 function validarMensagemEntrada(numero, mensagem) {
-  const maxCaracteres = 500;
+  const maxCaracteres = 5000;
 
   // Verifica se os campos estão preenchidos
   if (!numero || !mensagem) {
@@ -30,5 +30,6 @@ function validarMensagemEntrada(numero, mensagem) {
   // Se passou por todas as validações
   return null;
 }
+
 
 module.exports = validarMensagemEntrada;
